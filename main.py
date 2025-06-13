@@ -97,9 +97,9 @@ def get_restrictions(file, types):
 
             # Get restrictions by calling appropriate function
             if (types[i] == "CHAR" or types[i] == "VARCHAR"):
-                restrictions.append(char_restr(col))
+                restrictions.append(f"({char_restr(col)})")
             elif (types[i] == "DEC"):
-                restrictions.append(dec_restr(col))
+                restrictions.append(f"{dec_restr(col)}")
             else:
                 restrictions.append("")
 
@@ -147,7 +147,7 @@ def dec_restr(col):
 
 
 # Function to create insert statement code
-def inserts(file):
+def inserts(file, out_path):
     # Open file
     with open(file, "r") as f:
         # Get first line for attributes
@@ -159,31 +159,54 @@ def inserts(file):
 
 
 # File to create table statement code
-def tables(file):
+def tables(file, out_path):
     # Get list of type(s)
     types = get_types(file)
 
     # Get list of restriction(s)
     restrictions = get_restrictions(file, types)
 
-    # TEST
-    print(types)
-    print(restrictions)
+    # Get attributes
+    with open(file, "r") as f:
+        attributes = f.readline().strip("\n").split(",")
+
+    # Set code line
+    code_line = ["CREATE", "TABLE", f'"{out_path.split("\\")[-1].split(".")[0]}"(', "\n"]
+
+    # Iterate through each column
+    for i in range(len(types)):
+        # Add attribute, type, restriction, and new line to code line
+        code_line.append(f'\t"{attributes[i]}" {types[i]}{restrictions[i]},\n')
+
+    # Add ending to file after removing last comma
+    code_line[-1] = code_line[-1][:-2] + code_line[-1][-1] # Removes last comma
+    code_line.append(");\n\n")
+
+    # Open output file and add to it
+    with open(out_path, "a") as f:
+        f.write(f"/* Tables for {out_path.split("\\")[-1].split(".")[0]} */\n") # Comment for tables
+        f.write(" ".join(code_line)) # Tables
 
 
 # Main function
 def main():
     # Get current working directory and set directory of folder with files
     cwd = os.getcwd()
-    directory = "Files"
+    directory = "Input"
+    out_dir = "Output"
 
     # Iterate through all files stored in directory folder
     for file in os.listdir(os.path.join(cwd, directory)):
         path = os.path.join(cwd, directory, file)
+        out_path = os.path.join(cwd, out_dir, f"{file.split(".")[0]}.sql")
+
+        # Create file
+        with open(out_path, "w"):
+            pass
 
         # Call tables and inserts functions
-        tables(path)
-        inserts(path)
+        tables(path, out_path)
+        inserts(path, out_path)
 
 
 # Call main function
