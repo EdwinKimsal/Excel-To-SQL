@@ -35,17 +35,10 @@ def get_types(file):
             # Create lowercase variable of cell
             cell = cells[i + j*columns].lower()
 
-            # Iterate through each character in cell and check if all are valid
-            for character in cell:
-                # If a character is not in the valid list, the type is not CHAR
-                if (character not in valid_char_letters or (col_type != "CHAR" and col_type != "NULL")):
-                    col_type = "VARCHAR"
-                    break
-
             # If you can convert the type to INT or FLOAT (DEC), it is not VARCHAR or CHAR
             try:
                 cell = float(cell)
-                if (col_type == "CHAR"):
+                if (col_type != "INT" and col_type != "DEC" and col_type != "NULL"):
                     col_type = "VARCHAR"
                     break
                 elif (cell // 1 == cell):
@@ -53,13 +46,16 @@ def get_types(file):
                 else:
                     col_type = "DEC"
             except ValueError:
-                # If type is CHAR, keep going
-                if (col_type == "NULL" or col_type == "CHAR"):
-                    col_type = "CHAR"
+                # Iterate through each character and check if it is CHAR or VARCHAR
+                for char in cell:
+                    if (char not in valid_char_letters):
+                        col_type = "VARCHAR"
+                        break
+                    else:
+                        col_type = "CHAR"
 
-                # Else it is VARCHAR, stop
-                else:
-                    col_type = "VARCHAR"
+                # Break if col_type if VARCHAR
+                if (col_type == "VARCHAR"):
                     break
 
         # Append column type
@@ -107,7 +103,7 @@ def get_restrictions(file, types):
         return restrictions
 
 
-# Function for char & varchar
+# Function for char & varchar restrictions
 def char_restr(col):
     # Initially set max_len to zero
     max_len = 0
@@ -121,16 +117,16 @@ def char_restr(col):
     return max_len
 
 
-# Function for dec
+# Function for dec restrictions
 def dec_restr(col):
     # Initially set max precision and max scale to zero
     max_prec = 0
     max_scale = 0
 
     # Iterate through each instance in column
-    for inst in col:
+    for item in col:
         # Split between decimal point
-        number = inst.split(".")
+        number = item.split(".")
 
         # Set current precision and scale
         curr_prec = len(number[0]) + len(number[1])
@@ -142,34 +138,44 @@ def dec_restr(col):
         if (curr_scale > max_scale):
             max_scale = curr_scale
 
-        # Return tuple of max precision and scale
-        return ((max_prec, max_scale))
+    # Return tuple of max precision and scale
+    return ((max_prec, max_scale))
 
 
 # Function to create insert statement code
-def inserts(file, out_path):
+def inserts(file, out_path, attributes, types):
+    # Set code_line to be initially blank
+    code_line = []
     # Open file
     with open(file, "r") as f:
-        # Get first line for attributes
-        attributes = f.readline().strip("\n").split(",")
+        # Skip first line
+        f.readline()
 
         # Iterate for each line (except the first one) in file
         for line in f:
             line = line.strip("\n").split(",")
 
+            # Add INSERT INTOs in code_line
+            code_line.append("INSERT")
+            code_line.append("INTO")
+            code_line.append(f'"{out_path.split("\\")[-1].split(".")[0]}"("{'", "'.join(attributes)}")')
+
+            # Add quotations to CHAR and VARCHAR types
+            for i in range(len(line)):
+                if ((types[i] == "CHAR" or types[i] == "VARCHAR") and line[i] != "NULL"):
+                    line[i] = f"'{line[i].strip(",").replace("'", "''")}'"
+
+            # Add Values to code
+            code_line.append(f"\nVALUES({", ".join(line)});\n")
+
+        # Write code_line to code file
+        with open(out_path, "a") as f:
+            f.write(f"/* Insert Statements for {out_path.split("\\")[-1].split(".")[0]} */ \n")
+            f.write(" ".join(code_line))
+
 
 # File to create table statement code
-def tables(file, out_path):
-    # Get list of type(s)
-    types = get_types(file)
-
-    # Get list of restriction(s)
-    restrictions = get_restrictions(file, types)
-
-    # Get attributes
-    with open(file, "r") as f:
-        attributes = f.readline().strip("\n").split(",")
-
+def tables(file, out_path, attributes, types, restrictions):
     # Set code line
     code_line = ["CREATE", "TABLE", f'"{out_path.split("\\")[-1].split(".")[0]}"(', "\n"]
 
@@ -200,13 +206,23 @@ def main():
         path = os.path.join(cwd, directory, file)
         out_path = os.path.join(cwd, out_dir, f"{file.split(".")[0]}.sql")
 
+        # Get list of type(s)
+        types = get_types(path)
+
+        # Get list of restriction(s)
+        restrictions = get_restrictions(path, types)
+
+        # Get attributes
+        with open(path, "r") as f:
+            attributes = f.readline().strip("\n").split(",")
+
         # Create file
         with open(out_path, "w"):
             pass
 
         # Call tables and inserts functions
-        tables(path, out_path)
-        inserts(path, out_path)
+        tables(path, out_path, attributes, types, restrictions)
+        inserts(path, out_path, attributes, types)
 
 
 # Call main function
