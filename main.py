@@ -160,10 +160,13 @@ def inserts(file, out_path, attributes, types):
             code_line.append("INTO")
             code_line.append(f'"{out_path.split("\\")[-1].split(".")[0]}"("{'", "'.join(attributes)}")')
 
-            # Add quotations to CHAR and VARCHAR types
+            # Add quotations to CHAR and VARCHAR types and set null
             for i in range(len(line)):
                 if ((types[i] == "CHAR" or types[i] == "VARCHAR") and line[i] != "NULL"):
                     line[i] = f"'{line[i].strip(",").replace("'", "''")}'"
+
+                if (line[i] == ""):
+                    line[i] = "NULL"
 
             # Add Values to code
             code_line.append(f"\nVALUES({", ".join(line)});\n")
