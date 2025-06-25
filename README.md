@@ -6,5 +6,5 @@
 4) Press run
 
 ## Applications
-- Generate DROP TABLE, CREATE TABLE, INSERT, and SELECT SQL statements from Excel (SQL) files
+- Generate DROP TABLE, CREATE TABLE, INSERT, and SELECT SQL statements from Excel (CSV) files
 - Automates primary/foreign keys & parent/child tables
