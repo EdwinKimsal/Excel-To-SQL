@@ -1,4 +1,5 @@
 # Import(s)
+import mysql.connector
 import os
 import time
 
@@ -150,8 +151,12 @@ def drop(out_path, files):
 
     # Iterate backwards through all files
     for file in files[::-1]:
-        code_list.append(f"DROP {file.split(".")[0]};\n")
+        code_list.append(f"DROP TABLE {file.split(".")[0]};\n")
 
+    # Run SQL
+    run_sql(''.join(code_list))
+
+    # Write SQL
     with open(out_path, "a") as f:
         f.write("/* DROP Statements */\n")
         f.write(f"{''.join(code_list)}\n")
@@ -159,8 +164,10 @@ def drop(out_path, files):
 
 # Function to create INSERT INTO statement code
 def inserts(file, out_path, attributes, types, name):
-    # Set code_line to be initially blank
-    code_line = []
+    # Write initial comment
+    with open(out_path, "a") as f:
+        f.write(f"/* Insert Statements for {name.split(".")[0]} */ \n")
+
     # Open file
     with open(file, "r") as f:
         # Skip first line
@@ -168,12 +175,10 @@ def inserts(file, out_path, attributes, types, name):
 
         # Iterate for each line (except the first one) in file
         for line in f:
-            line = line.strip("\n").split(",")
+            # Set code_line to be initially blank
+            code_line = []
 
-            # Add INSERT INTOs in code_line
-            code_line.append("INSERT ")
-            code_line.append("INTO ")
-            code_line.append(f'"{name.split(".")[0]}"("{'", "'.join(attributes)}")')
+            line = line.strip("\n").split(",")
 
             # Add quotations to CHAR and VARCHAR types and set null
             for i in range(len(line)):
@@ -184,26 +189,30 @@ def inserts(file, out_path, attributes, types, name):
                     line[i] = "NULL"
 
             # Add Values to code
-            code_line.append(f"\nVALUES({", ".join(line)});\n")
+            code_line.append(f"VALUES({", ".join(line)});")
 
-        # Write code_line to code file
-        with open(out_path, "a") as f:
-            f.write(f"/* Insert Statements for {name.split(".")[0]} */ \n")
-            f.write(f'{"".join(code_line)}\n')
+            # # Execute SQL
+            # result = "".join(code_line)
+            # print(result)
+            # run_sql("".join(code_line))
+
+            # Write code_line to code file
+            with open(out_path, "a") as f:
+                f.write(f'{"".join(code_line)}\n')
 
 
 # File to generate CREATE TABLE statement code
 def tables(out_path, attributes, used_attrs, types, restrictions, name):
     # Set code line
-    code_line = ["CREATE", "TABLE", f'"{name.split(".")[0]}"(', "\n"]
+    code_line = ["CREATE ", "TABLE ", f'{name.split(".")[0]}(']
 
     # Iterate through each column
     for i in range(len(types)):
         # Add attribute, type, restriction, and new line to code line
-        code_line.append(f'\t"{attributes[i]}" {types[i]}{restrictions[i]},\n')
+        code_line.append(f'{attributes[i]} {types[i]}{restrictions[i]}, ')
 
     # Add remove extra from last type and add PRIMARY KEY
-    code_line.append(f'\tPRIMARY KEY ("{attributes[0]}"),\n') # Add primary key
+    code_line.append(f'PRIMARY KEY ({attributes[0]}), ') # Add primary key
     used_attrs.append([attributes[0], name.split(".")[0]]) # Add primary key to used attributes
 
     # Check if each type is used or new
@@ -217,17 +226,21 @@ def tables(out_path, attributes, used_attrs, types, restrictions, name):
             for used_attr in used_attrs[:]:
                 # If already used, write proper reference
                 if attribute == used_attr[0]:
-                    code_line.append(f'\tFOREIGN KEY ("{attribute}") REFERENCES "{used_attr[1]}"("{attribute}"),\n')
+                    code_line.append(f'FOREIGN KEY ("{attribute}") REFERENCES "{used_attr[1]}"("{attribute}"), ')
 
 
     # Add proper ending
     code_line[-1] = code_line[-1][:-2] + code_line[-1][-1] # Removes last comma
-    code_line.append(");\n\n") # Adds ending
+    code_line.append(");") # Adds ending
+
+    # # Execute SQL
+    # print("".join(code_line))
+    # run_sql("".join(code_line))
 
     # Open output file and add to it
     with open(out_path, "a") as f:
         f.write(f"/* Tables for {name.split(".")[0]} */\n") # Comment for tables
-        f.write(" ".join(code_line)) # Tables
+        f.write(f'{"".join(code_line)}\n\n') # Tables
 
     # Return used types
     return used_attrs
@@ -242,9 +255,26 @@ def select_state(out_path, files):
     for file in files:
         code_list.append(f"SELECT * FROM {file.split(".")[0]};\n")
 
+    # Write SQL SELECT statements
     with open(out_path, "a") as f:
         f.write("/* SELECT Statements */\n")
         f.write("".join(code_list))
+
+
+# Function to run script
+def run_sql(script):
+    # Set path of database
+    conn = mysql.connector.connect(
+        host = "localhost",
+        user = "root",
+        password = "ABNyZ=nA9G7k",
+        database = "wedding_rsvp"
+    )
+
+    # Make connection with cursor and execute command
+    with conn.cursor() as crsr:
+        crsr.execute(script)
+        conn.commit()
 
 
 # Main function
@@ -275,8 +305,8 @@ def main():
     # Start time
     start_time = time.perf_counter()
 
-    # Generate DROP statements
-    drop(out_path, files)
+    # # Generate DROP statements
+    # drop(out_path, files)
 
     # Iterate through all files stored in directory folder
     for file in files:
@@ -296,8 +326,8 @@ def main():
         used_attrs = tables(out_path, attributes, used_attrs, types, restrictions, file)
         inserts(path, out_path, attributes, types, file)
 
-    # Generate SELECT statements
-    select_state(out_path, files)
+    # # Generate SELECT statements
+    # select_state(out_path, files)
 
     # Print results
     end_time = time.perf_counter()
